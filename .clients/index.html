@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Realtime Cinema Chat Room</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #0b0f19;
+            --card-bg: rgba(23, 28, 41, 0.85);
+            --border-color: rgba(255, 255, 255, 0.08);
+            --primary: #6366f1;
+            --primary-hover: #4f46e5;
+            --primary-glow: rgba(99, 102, 241, 0.3);
+            --text-main: #f8fafc;
+            --text-muted: #64748b;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --input-bg: #1e293b;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            background-image: 
+                radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.15) 0px, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(16, 185, 129, 0.1) 0px, transparent 50%);
+        }
+
+        .chat-container {
+            width: 100%;
+            max-width: 800px;
+            height: 600px;
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3), 0 10px 10px -5px rgba(0, 0, 0, 0.2);
+            backdrop-filter: blur(12px);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            transition: transform 0.3s ease;
+        }
+
+        /* Lobby Form */
+        .lobby-screen {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            flex: 1;
+            padding: 40px;
+            gap: 24px;
+        }
+
+        .lobby-header {
+            text-align: center;
+        }
+
+        .lobby-header h1 {
+            font-size: 2.2rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #a5b4fc 0%, #6366f1 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 8px;
+        }
+
+        .lobby-header p {
+            color: var(--text-muted);
+            font-size: 0.95rem;
+        }
+
+        .form-group {
+            width: 100%;
+            max-width: 380px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .form-group label {
+            font-size: 0.85rem;
+            font-weight: 500;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        input {
+            width: 100%;
+            padding: 12px 16px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            background: var(--input-bg);
+            color: var(--text-main);
+            font-family: inherit;
+            font-size: 1rem;
+            outline: none;
+            transition: all 0.2s ease;
+        }
+
+        input:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px var(--primary-glow);
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border-radius: 8px;
+            border: none;
+            background: var(--primary);
+            color: white;
+            font-family: inherit;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .btn:hover {
+            background: var(--primary-hover);
+            transform: translateY(-1px);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        /* Active Chat Screen */
+        .chat-screen {
+            display: none;
+            flex-direction: column;
+            flex: 1;
+            height: 100%;
+        }
+
+        .chat-header {
+            padding: 16px 24px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(0, 0, 0, 0.15);
+        }
+
+        .chat-title-info h2 {
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+
+        .chat-title-info p {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
+        .room-badge {
+            background: var(--primary-glow);
+            color: #a5b4fc;
+            padding: 4px 10px;
+            border-radius: 9999px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+
+        .messages-area {
+            flex: 1;
+            padding: 24px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .message {
+            display: flex;
+            flex-direction: column;
+            max-width: 70%;
+            animation: fadeIn 0.2s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(4px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .message.self {
+            align-self: flex-end;
+        }
+
+        .message.other {
+            align-self: flex-start;
+        }
+
+        .message-meta {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-bottom: 4px;
+            display: flex;
+            gap: 8px;
+        }
+
+        .message.self .message-meta {
+            justify-content: flex-end;
+        }
+
+        .message-bubble {
+            padding: 10px 14px;
+            border-radius: 12px;
+            font-size: 0.95rem;
+            line-height: 1.4;
+            word-break: break-word;
+        }
+
+        .message.self .message-bubble {
+            background: var(--primary);
+            color: white;
+            border-bottom-right-radius: 2px;
+        }
+
+        .message.other .message-bubble {
+            background: rgba(255, 255, 255, 0.06);
+            color: var(--text-main);
+            border-bottom-left-radius: 2px;
+            border: 1px solid var(--border-color);
+        }
+
+        .system-message {
+            align-self: center;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            background: rgba(255, 255, 255, 0.04);
+            padding: 4px 12px;
+            border-radius: 9999px;
+            border: 1px solid var(--border-color);
+            margin: 4px 0;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .system-message.join::before {
+            content: '';
+            display: inline-block;
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--success);
+        }
+
+        .system-message.leave::before {
+            content: '';
+            display: inline-block;
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--warning);
+        }
+
+        /* Message Input Area */
+        .input-area {
+            padding: 16px 24px;
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            gap: 12px;
+            background: rgba(0, 0, 0, 0.1);
+        }
+
+        .input-area input {
+            flex: 1;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="chat-container">
+        <!-- Lobby / Join Screen -->
+        <div id="lobbyScreen" class="lobby-screen">
+            <div class="lobby-header">
+                <h1>Cinema Realtime Chat</h1>
+                <p>Join a room to chat with staff and managers</p>
+            </div>
+            
+            <div class="form-group">
+                <label for="nicknameInput">Your Nickname</label>
+                <input type="text" id="nicknameInput" placeholder="e.g. Alice, Bob" value="">
+            </div>
+
+            <div class="form-group">
+                <label for="roomInput">Room Name</label>
+                <input type="text" id="roomInput" placeholder="e.g. general, helpdesk" value="general">
+            </div>
+
+            <button id="joinBtn" class="btn" style="width: 100%; max-width: 380px;">Join Room</button>
+        </div>
+
+        <!-- Chat Screen -->
+        <div id="chatScreen" class="chat-screen">
+            <div class="chat-header">
+                <div class="chat-title-info">
+                    <h2 id="displayNickname">Guest</h2>
+                    <p id="connectionStatus" style="color: var(--success);">Connected</p>
+                </div>
+                <div>
+                    <span id="displayRoom" class="room-badge">general</span>
+                    <button id="leaveBtn" class="btn" style="padding: 6px 12px; font-size: 0.8rem; background: transparent; border: 1px solid var(--border-color); margin-left: 8px;">Leave</button>
+                </div>
+            </div>
+
+            <!-- Messages Area -->
+            <div id="messagesArea" class="messages-area">
+                <!-- System and chat messages append here -->
+            </div>
+
+            <!-- Input Area -->
+            <div class="input-area">
+                <input type="text" id="messageInput" placeholder="Type your message here..." disabled>
+                <button id="sendBtn" class="btn" disabled>Send</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Socket.IO Client CDN -->
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+    <script>
+        const lobbyScreen = document.getElementById('lobbyScreen');
+        const chatScreen = document.getElementById('chatScreen');
+        const joinBtn = document.getElementById('joinBtn');
+        const leaveBtn = document.getElementById('leaveBtn');
+        const sendBtn = document.getElementById('sendBtn');
+        const nicknameInput = document.getElementById('nicknameInput');
+        const roomInput = document.getElementById('roomInput');
+        const messageInput = document.getElementById('messageInput');
+        const messagesArea = document.getElementById('messagesArea');
+        const displayNickname = document.getElementById('displayNickname');
+        const displayRoom = document.getElementById('displayRoom');
+        const connectionStatus = document.getElementById('connectionStatus');
+
+        let socket;
+        let currentRoom = '';
+        let currentNickname = '';
+
+        function joinRoom() {
+            const nickname = nicknameInput.value.trim();
+            const room = roomInput.value.trim();
+
+            if (!nickname || !room) {
+                alert('Please enter both nickname and room name.');
+                return;
+            }
+
+            currentNickname = nickname;
+            currentRoom = room;
+
+            // Connect to Socket.IO Server
+            socket = io('http://localhost:3000');
+
+            socket.on('connect', () => {
+                connectionStatus.textContent = 'Connected';
+                connectionStatus.style.color = 'var(--success)';
+                
+                // Emit joinRoom event
+                socket.emit('joinRoom', { room: currentRoom, nickname: currentNickname });
+
+                // UI adjustments
+                displayNickname.textContent = currentNickname;
+                displayRoom.textContent = currentRoom;
+                lobbyScreen.style.display = 'none';
+                chatScreen.style.display = 'flex';
+                messageInput.disabled = false;
+                sendBtn.disabled = false;
+                messageInput.focus();
+
+                appendSystemMessage(`You joined room: ${currentRoom}`, 'join');
+            });
+
+            socket.on('disconnect', () => {
+                connectionStatus.textContent = 'Disconnected';
+                connectionStatus.style.color = 'var(--warning)';
+                messageInput.disabled = true;
+                sendBtn.disabled = true;
+            });
+
+            // Listen for system events (join/leave)
+            socket.on('roomToClient', (data) => {
+                if (data.kind === 'join') {
+                    appendSystemMessage(`${data.nickname} joined the room.`, 'join');
+                } else if (data.kind === 'leave') {
+                    appendSystemMessage(`${data.nickname} left the room.`, 'leave');
+                }
+            });
+
+            // Listen for messages from server
+            socket.on('chatToClient', (message) => {
+                appendChatMessage(message);
+            });
+
+            // Listen for error events
+            socket.on('error', (err) => {
+                alert(err.message || 'An error occurred');
+            });
+        }
+
+        function leaveRoom() {
+            if (socket) {
+                socket.disconnect();
+            }
+            messagesArea.innerHTML = '';
+            chatScreen.style.display = 'none';
+            lobbyScreen.style.display = 'flex';
+            currentRoom = '';
+            currentNickname = '';
+        }
+
+        function sendMessage() {
+            const text = messageInput.value.trim();
+            if (!text) return;
+
+            socket.emit('chatToServer', { text });
+            messageInput.value = '';
+            messageInput.focus();
+        }
+
+        function appendSystemMessage(text, kind) {
+            const div = document.createElement('div');
+            div.className = `system-message ${kind}`;
+            div.textContent = text;
+            messagesArea.appendChild(div);
+            messagesArea.scrollTop = messagesArea.scrollHeight;
+        }
+
+        function appendChatMessage(msg) {
+            const isSelf = msg.nickname === currentNickname;
+            const div = document.createElement('div');
+            div.className = `message ${isSelf ? 'self' : 'other'}`;
+
+            const meta = document.createElement('div');
+            meta.className = 'message-meta';
+            const timeStr = new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            meta.textContent = `${isSelf ? 'You' : msg.nickname} • ${timeStr}`;
+
+            const bubble = document.createElement('div');
+            bubble.className = 'message-bubble';
+            bubble.textContent = msg.text;
+
+            div.appendChild(meta);
+            div.appendChild(bubble);
+            messagesArea.appendChild(div);
+            messagesArea.scrollTop = messagesArea.scrollHeight;
+        }
+
+        joinBtn.addEventListener('click', joinRoom);
+        leaveBtn.addEventListener('click', leaveRoom);
+        sendBtn.addEventListener('click', sendMessage);
+        messageInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+    </script>
+</body>
+</html>
