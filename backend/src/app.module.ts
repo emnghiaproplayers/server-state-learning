@@ -3,7 +3,10 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { UsersModule } from './users/users.module';
 import { ChatModule } from './chat/chat.module';
+import { AuthModule } from './auth/auth.module';
+import { CommentsModule } from './comments/comments.module';
 import { ChatMessageEntity } from './chat/chat-message.entity';
+import { UserEntity } from './auth/user.entity';
 
 @Module({
   imports: [
@@ -20,12 +23,14 @@ import { ChatMessageEntity } from './chat/chat-message.entity';
         username: configService.get<string>('DB_USERNAME') || 'postgres',
         password: configService.get<string>('DB_PASSWORD') || 'postgres',
         database: configService.get<string>('DB_DATABASE') || 'chat',
-        entities: [ChatMessageEntity],
+        entities: [ChatMessageEntity, UserEntity],
         synchronize: true,
       }),
     }),
     UsersModule,
     ChatModule,
+    AuthModule,
+    CommentsModule,
   ],
 })
 export class AppModule {}

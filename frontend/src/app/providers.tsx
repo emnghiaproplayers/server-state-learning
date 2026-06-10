@@ -3,17 +3,17 @@
 import React, { useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
+import { HeroUIProvider } from '@heroui/react';
 
 export default function Providers({ children }: { children: React.ReactNode }) {
-  // Ensure the query client is only created once per browser tab
   const [queryClient] = useState(
     () =>
       new QueryClient({
         defaultOptions: {
           queries: {
-            staleTime: 10000, // 10 seconds
-            gcTime: 60000,    // 60 seconds (replaces cacheTime in v5)
-            refetchOnWindowFocus: 'always', // trigger background refetch on tab focus
+            staleTime: 10000,
+            gcTime: 60000,
+            refetchOnWindowFocus: 'always',
           },
         },
       }),
@@ -21,7 +21,9 @@ export default function Providers({ children }: { children: React.ReactNode }) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      {children}
+      <HeroUIProvider>
+        {children}
+      </HeroUIProvider>
       <ReactQueryDevtools initialIsOpen={false} />
     </QueryClientProvider>
   );

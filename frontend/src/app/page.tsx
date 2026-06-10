@@ -1,7 +1,7 @@
 'use client';
 
-import UsersPage from '../UsersPage';
+import CommentsManager from '../components/comments-manager';
 
 export default function Home() {
-  return <UsersPage />;
+  return <CommentsManager />;
 }
