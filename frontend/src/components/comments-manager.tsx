@@ -118,7 +118,7 @@ export default function CommentsManager() {
           placeholder="Your name"
           value={formik.values.author}
           onChange={(v: string) => formik.setFieldValue('author', v)}
-          isInvalid={formik.touched.author && !!formik.errors.author}
+          isInvalid={!!(formik.touched.author && formik.errors.author)}
           errorMessage={formik.errors.author}
         />
 
@@ -128,7 +128,7 @@ export default function CommentsManager() {
           placeholder="Write a comment..."
           value={formik.values.body}
           onChange={(v: string) => formik.setFieldValue('body', v)}
-          isInvalid={formik.touched.body && !!formik.errors.body}
+          isInvalid={!!(formik.touched.body && formik.errors.body)}
           errorMessage={formik.errors.body}
         />
 
