@@ -42,7 +42,7 @@ export function UserEditor() {
       await queryClient.cancelQueries({ queryKey: ['users'] });
 
       // 1.2 Snapshot the previous value from Query Cache
-      const previousUsers = queryClient.getQueryData<User[]>(['users']);
+      const previous = queryClient.getQueryData<User[]>(['users']);
 
       // 1.3 Optimistically update the query cache immediately
       queryClient.setQueryData<User[]>(['users'], (old = []) =>
@@ -52,7 +52,7 @@ export function UserEditor() {
       );
 
       // 1.4 Return snapshot context for rollback in onError
-      return { previousUsers };
+      return { previous };
     },
 
     // Step 2: onError runs if request fails (e.g. HTTP 500 error)
@@ -60,8 +60,8 @@ export function UserEditor() {
       setLastActionResult(`Failed (HTTP 500)! Rolling back cache to snapshot...`);
 
       // Rollback query cache to captured snapshot
-      if (context?.previousUsers) {
-        queryClient.setQueryData(['users'], context.previousUsers);
+      if (context?.previous) {
+        queryClient.setQueryData(['users'], context.previous);
       }
     },
 

@@ -1,24 +1,28 @@
 # Optimistic Name Editor: Instant UI Update, Snapshot Rollback & Resync
 
-Ứng dụng React TypeScript chỉnh sửa tên người dùng dựa trên cơ chế **Optimistic Update** kèm **Rollback** chính xác của TanStack Query (React Query v5). UI cập nhật tên mới ngay lập tức khi bấm lưu (onMutate), request PATCH gửi ngầm ở nền, và nếu server trả lỗi HTTP 500 thì cache được rollback ngay lập tức về snapshot đã chụp trước lúc ghi mà không cần đụng tới local `useState`.
+Ứng dụng React TypeScript quản lý việc chỉnh sửa tên người dùng dựa trên cơ chế **Optimistic Update** kèm **Snapshot Rollback** của TanStack Query (React Query v5). UI cập nhật ngay lập tức khi người dùng lưu, request PATCH gửi ngầm ở nền, và nếu server trả lỗi HTTP 500 thì cache được rollback chính xác về snapshot đã chụp trước lúc ghi.
 
 ---
 
 ## 1. Challenge Description
 
-Bài học này làm chủ vòng đời Optimistic Update hoàn chỉnh qua 3 mutation hooks của TanStack Query:
-- **Query Cache làm Single Source of Truth:** UI render danh sách users trực tiếp từ cache của `useQuery(["users"])`, không giữ bản sao local state riêng biệt.
-- **Snapshot capture trong `onMutate`:** TRƯỚC KHI ghi giá trị mới vào cache, `onMutate` thực hiện hủy các query đang chạy (`cancelQueries`), chụp snapshot dữ liệu hiện tại bằng `getQueryData(["users"])`, sau đó mới ghi giá trị mới qua `setQueryData(["users"], optimisticNext)`.
-- **Instant Rollback trong `onError`:** Khi server trả lỗi HTTP 500, `onError` khôi phục dữ liệu cache về chính xác `context.previousUsers` đã chụp trong `onMutate`, không gửi thêm request mạng để undo.
-- **Cache Resync trong `onSettled`:** Sau khi kết thúc mutation (cả khi thành công 200 lẫn khi thất bại 500), `onSettled` gọi `invalidateQueries(["users"])` để kích hoạt `GET /users` refetch ngầm, đảm bảo cache client hội tụ 100% với server.
-- **`retry: false`:** Cấu hình mutation không thử lại tự động để hành vi rollback diễn ra tức thì và có thể quan sát được ngay.
+Thử thách này yêu cầu làm chủ vòng đời Optimistic Update chuẩn mực của TanStack Query qua 3 mutation hooks:
+- **Server State Management:** Query cache `["users"]` là nguồn sự thật duy nhất cho danh sách users (UI đọc trực tiếp từ `useQuery`, không duy trì mảng `useState` cục bộ).
+- **Quy trình 4 bước trong `onMutate`:**
+  1. Hủy refetch ngầm: `await queryClient.cancelQueries({ queryKey: ["users"] })`.
+  2. Chụp snapshot cache: `const previous = queryClient.getQueryData<User[]>(["users"])`.
+  3. Ghi giá trị lạc quan vào cache: `queryClient.setQueryData<User[]>(["users"], ...)`.
+  4. Trả về snapshot context: `return { previous }`.
+- **Instant Rollback trong `onError`:** Khi PATCH nhận HTTP 500, khôi phục cache tức thì bằng `queryClient.setQueryData(["users"], context.previous)`.
+- **Eventual Consistency trong `onSettled`:** Luôn gọi `await queryClient.invalidateQueries({ queryKey: ["users"] })` sau mỗi lần mutation (dù thành công hay thất bại) để kích hoạt `GET /users` refetch đồng bộ lại với server.
+- **`retry: false`:** Tắt retry tự động cho mutation để quan sát ngay lập tức phản ứng rollback khi gặp lỗi 500.
 
 ---
 
 ## 2. How to Run
 
-### A. Khởi chạy Backend (NestJS Server - Port 3000)
-1. Di chuyển vào thư mục backend:
+### A. Khởi chạy Backend NestJS Server (Port 3000)
+1. Truy cập thư mục `backend`:
    ```bash
    cd backend
    ```
@@ -29,102 +33,121 @@ Bài học này làm chủ vòng đời Optimistic Update hoàn chỉnh qua 3 mu
    ```
    *(Backend chạy tại `http://localhost:3000`)*
 
-### B. Khởi chạy Frontend (`editor` App - Port 5173 / Port Vite)
-1. Di chuyển vào thư mục `editor`:
+### B. Khởi chạy Frontend Editor App (Port 5173 / Port Vite)
+1. Truy cập thư mục `editor`:
    ```bash
    cd editor
    ```
-2. Cài đặt các thư viện phụ thuộc:
-   ```bash
-   npm install
-   ```
-3. Khởi chạy Vite dev server:
+2. Khởi chạy Vite dev server:
    ```bash
    npm run dev
    ```
-4. Truy cập trình duyệt tại: `http://localhost:5173`
+3. Mở trình duyệt tại: `http://localhost:5173`
 
 ---
 
 ## 3. Architecture/Stack
 
-* **Frontend:** React 19, TypeScript, Vite.
-* **Server State:** TanStack React Query (`@tanstack/react-query` v5 & Devtools) với `mutations: { retry: false }`.
-* **Icons & Styling:** Lucide React icons, Glassmorphism Dark CSS với hiệu ứng animation pulse & spinner.
-* **Backend:** NestJS (`UsersModule` phục vụ REST endpoints `GET /users` và `PATCH /users/:id` kèm cờ `?fail=true` ném lỗi HTTP 500 giả lập và delay 600ms).
+* **Frontend Framework:** React 19, TypeScript, Vite.
+* **State Management:** TanStack React Query v5 (`@tanstack/react-query` & `@tanstack/react-query-devtools`) với `mutations: { retry: false }`.
+* **Icons & UI:** Lucide React icons, Vanilla Glassmorphism CSS với status indicators và skeleton pulse.
+* **Backend API:** NestJS (In-memory `UsersModule` cung cấp `GET /users` và `PATCH /users/:id?fail=true` với delay 600ms giả lập).
 
 ---
 
-## 4. Evidence (Terminal Logs & Network Test Output)
+## 4. Evidence
 
-Kết quả kiểm thử thực tế từ Terminal kết nối tới backend server:
+Kết quả kiểm thử thực tế từ Terminal & Network log kết nối trực tiếp với backend server:
 
 ```text
-1. Initial Users: [
+1. Initial GET /users:
+[
   { id: 1, name: 'Alice Smith', email: 'alice@example.com' },
   { id: 2, name: 'Bob Jones', email: 'bob@example.com' },
   { id: 3, name: 'Charlie Brown', email: 'charlie@example.com' }
 ]
 
-2. PATCH 200 Success: { id: 1, name: 'Alice Permanent', email: 'alice@example.com' }
+2. Success Mutation (HTTP 200 OK):
+PATCH http://localhost:3000/users/1 -> Body: { name: 'Alice Permanent' }
+Response Status: 200 OK -> { id: 1, name: 'Alice Permanent', email: 'alice@example.com' }
 
-3. PATCH 500 Fail Status: 500 Error Body: {
-  message: 'Simulated Server Error 500: Forced failure for optimistic rollback test',
-  error: 'Internal Server Error',
-  statusCode: 500
-}
+3. Failed Mutation (HTTP 500 Internal Server Error & Instant Rollback):
+PATCH http://localhost:3000/users/1?fail=true -> Body: { name: 'Alice Failed', fail: true }
+Response Status: 500 Internal Server Error -> { message: 'Simulated Server Error 500: Forced failure for optimistic rollback test' }
 
-4. Resynced GET /users after settle: [
+4. Resynced GET /users after onSettled:
+[
   { id: 1, name: 'Alice Permanent', email: 'alice@example.com' },
   { id: 2, name: 'Bob Jones', email: 'bob@example.com' },
   { id: 3, name: 'Charlie Brown', email: 'charlie@example.com' }
 ]
 ```
 
-### Bối cảnh Quan sát Trực quan trên Browser:
-1. **Trường hợp 1 (Force 500 = OFF - Flow 200 Success):**
-   - Nhấn Save -> Tên trong danh sách đổi NGAY LẬP TỨC sang tên mới (chưa chờ response).
-   - `mutation-status` chuyển `Saving (Optimistic)`.
-   - Sau 600ms, request PATCH trả về 200 OK -> `onSettled` kích hoạt `GET /users` refetch ngầm, `query-status` chớp `Refetching (GET /users)`.
-2. **Trường hợp 2 (Force 500 = ON - Flow 500 Rollback):**
-   - Tích chọn checkbox *Force Server Error HTTP 500* và nhấn Save.
-   - UI lập tức hiện tên mới (Optimistic update).
-   - Sau 600ms, server trả lỗi HTTP 500 -> `onError` lập tức rollback tên trong danh sách về đúng tên ban đầu (`context.previousUsers`).
-   - `mutation-status` chuyển `Error 500 (Rolled Back)`.
-   - `onSettled` tiếp tục gọi `GET /users` refetch để đảm bảo tính nhất quán tuyệt đối.
-
 ---
 
 ## 5. Hook Execution Trace
 
-Chi tiết thứ tự thực thi của 3 mutation hook trong ứng dụng:
+Mã nguồn thực tế triển khai 3 mutation hooks trong [UserEditor.tsx](file:///d:/Nghia-project/escape-beta/server-state-learning/editor/src/components/UserEditor.tsx#L38-L72):
 
-1. **Trigger Mutation tại Form Submit:**
-   - [UserEditor.tsx:75](file:///d:/Nghia-project/escape-beta/server-state-learning/editor/src/components/UserEditor.tsx#L75) -> Hàm `handleSubmit` gọi `mutation.mutate({ id: selectedUserId, name: inputName, fail: forceFail })`.
-2. **Thực thi `onMutate` (Trước khi gửi Network Request):**
-   - [UserEditor.tsx:32](file:///d:/Nghia-project/escape-beta/server-state-learning/editor/src/components/UserEditor.tsx#L32) -> Bước 1: `await queryClient.cancelQueries({ queryKey: ["users"] })` hủy các refetch đang bay để không ghi đè giá trị optimistic.
-   - [UserEditor.tsx:35](file:///d:/Nghia-project/escape-beta/server-state-learning/editor/src/components/UserEditor.tsx#L35) -> Bước 2: `const previousUsers = queryClient.getQueryData<User[]>(["users"])` chụp snapshot cache hiện tại.
-   - [UserEditor.tsx:38](file:///d:/Nghia-project/escape-beta/server-state-learning/editor/src/components/UserEditor.tsx#L38) -> Bước 3: `queryClient.setQueryData<User[]>(["users"], ...)` ghi giá trị optimistic làm UI đổi ngay tức thì.
-   - [UserEditor.tsx:45](file:///d:/Nghia-project/escape-beta/server-state-learning/editor/src/components/UserEditor.tsx#L45) -> Bước 4: Return `{ previousUsers }` trả về context cho `onError`.
-3. **Thực thi Network Call PATCH /users/:id:**
-   - [api.ts:16](file:///d:/Nghia-project/escape-beta/server-state-learning/editor/src/lib/api.ts#L16) -> Hàm `updateUserName` gửi HTTP PATCH tới `${BASE_URL}/users/${id}`.
-   - [users.controller.ts:41](file:///d:/Nghia-project/escape-beta/server-state-learning/backend/src/users/users.controller.ts#L41) -> NestJS Controller tiếp nhận request. Nếu `fail === true`, throw `InternalServerErrorException` (HTTP 500).
-4. **Xử lý Lỗi tại `onError` (Rollback):**
-   - [UserEditor.tsx:49](file:///d:/Nghia-project/escape-beta/server-state-learning/editor/src/components/UserEditor.tsx#L49) -> Nhận lỗi HTTP 500 từ server.
-   - [UserEditor.tsx:54](file:///d:/Nghia-project/escape-beta/server-state-learning/editor/src/components/UserEditor.tsx#L54) -> Tháo nắp snapshot: `queryClient.setQueryData(["users"], context.previousUsers)` khôi phục dữ liệu cache về đúng trạng thái trước khi bấm Save.
-5. **Điều hòa Trạng thái tại `onSettled` (Resync):**
-   - [UserEditor.tsx:60](file:///d:/Nghia-project/escape-beta/server-state-learning/editor/src/components/UserEditor.tsx#L60) -> Chạy ở CẢ hai kết cục (Success hoặc Error): `await queryClient.invalidateQueries({ queryKey: ["users"] })` phát lệnh refetch ngầm `GET /users` để điều hòa cache 100% đồng bộ với server.
+```typescript
+  const mutation = useMutation({
+    mutationFn: updateUserName,
+
+    // Step 1: onMutate runs BEFORE the network request is sent
+    onMutate: async (newUserData) => {
+      setLastActionResult('Optimistic write applied to cache...');
+
+      // 1.1 Cancel any outgoing refetches so they don't overwrite optimistic update
+      await queryClient.cancelQueries({ queryKey: ['users'] });
+
+      // 1.2 Snapshot the previous value from Query Cache
+      const previous = queryClient.getQueryData<User[]>(['users']);
+
+      // 1.3 Optimistically update the query cache immediately
+      queryClient.setQueryData<User[]>(['users'], (old = []) =>
+        old.map((user) =>
+          user.id === newUserData.id ? { ...user, name: newUserData.name } : user,
+        ),
+      );
+
+      // 1.4 Return snapshot context for rollback in onError
+      return { previous };
+    },
+
+    // Step 2: onError runs if the network request fails (e.g., HTTP 500 error)
+    onError: (_err, _newUserData, context) => {
+      setLastActionResult('Failed (HTTP 500)! Rolling back cache to snapshot...');
+
+      // Rollback query cache to captured snapshot
+      if (context?.previous) {
+        queryClient.setQueryData(['users'], context.previous);
+      }
+    },
+
+    // Step 3: onSettled runs after success OR failure to resync with server
+    onSettled: async () => {
+      // Invalidate to trigger GET /users refetch and ensure cache convergence
+      await queryClient.invalidateQueries({ queryKey: ['users'] });
+    },
+  });
+```
+
+### Trích đoạn gọi hàm API phơi bày lỗi 500:
+- [api.ts:16-36](file:///d:/Nghia-project/escape-beta/server-state-learning/editor/src/lib/api.ts#L16-L36): Hàm `updateUserName` gửi `PATCH /users/:id?fail=true` và throw error khi `!res.ok`.
+- [users.controller.ts:41-62](file:///d:/Nghia-project/escape-beta/server-state-learning/backend/src/users/users.controller.ts#L41-L62): NestJS Controller ném `InternalServerErrorException` (HTTP 500) khi `failQuery === 'true'`.
 
 ---
 
 ## 6. Design Decisions
 
-### A. Tại sao `cancelQueries` bắt buộc phải chạy ĐẦU TIÊN trong `onMutate`?
-Nếu không gọi `cancelQueries` trước, một request `GET /users` đang bay ở nền (ví dụ do window focus hoặc refetch định kỳ) có thể phản hồi và đè dữ liệu server cũ lên cache **sau khi** bạn vừa ghi optimistic write. Đồng thời, việc `cancelQueries` trước giúp chụp snapshot `getQueryData` chuẩn xác nhất trước khi thực hiện biến đổi.
+### A. Tại sao `cancelQueries` phải chạy đầu tiên trong `onMutate`?
+Việc gọi `await queryClient.cancelQueries({ queryKey: ['users'] })` trước tiên có 2 tác dụng bắt buộc:
+1. Đảm bảo bất kỳ request `GET /users` nào đang bay ở nền (in-flight request) đều bị hủy, tránh việc response cũ đáp xuống sau `onMutate` và đè mất dữ liệu optimistic write.
+2. Đảm bảo dữ liệu thu được qua `queryClient.getQueryData(['users'])` ở bước 2 chính là snapshot nguyên bản tĩnh nhất trước khi thực hiện ghi đè.
 
-### B. Tại sao Rollback trong `onError` dùng `setQueryData` thay vì gọi lại API để undo?
-- **Tốc độ (Instant Rollback):** Rollback cục bộ bằng `setQueryData(["users"], context.previousUsers)` phản hồi ngay lập tức (0ms delay), giúp người dùng thấy UI trả lại tên cũ ngay khi server báo lỗi.
-- **Tránh quá tải mạng:** Nếu backend đang gặp sự cố 500, việc tiếp tục bắn thêm request GET/PATCH để khôi phục sẽ làm tăng tải cho server đang nghẽn.
+### B. Tại sao Rollback trong `onError` sử dụng `context.previous` thay vì refetch?
+- **Tốc độ phản hồi (0ms delay):** Khôi phục dữ liệu ngay lập tức tại local cache qua `setQueryData(['users'], context.previous)` giúp UI trả về ngay tên snapshot cũ mà không chờ đợi mạng.
+- **Tránh nhân đôi lỗi mạng:** Nếu server đang trả 500 (quá tải hoặc sập DB), việc cố gắng gọi lại `fetchUsers` ngay trong `onError` sẽ tiếp tục thất bại và tăng áp lực lên backend.
 
-### C. Lý do `onSettled` luôn gọi `invalidateQueries` bất kể thành công hay thất bại?
-`onSettled` đóng vai trò là "chốt hạ đồng bộ" (Eventual Consistency). Dù ghi thành công hay thất bại rollback, việc phát lệnh `invalidateQueries` giúp TanStack Query lấy lại bản snapshot chính thức từ server, loại bỏ triệt để bất kỳ sự lệch lạc dữ liệu nào do race condition gây ra.
+### C. Lý do `onSettled` luôn gọi `invalidateQueries` ở cả hai nhánh?
+`onSettled` đảm bảo tính nhất quán cuối cùng (Eventual Consistency). Dù mutation thành công hay thất bại (đã rollback), việc phát lệnh `invalidateQueries` giúp TanStack Query thực hiện refetch ngầm từ server để xác nhận và làm mịn (reconcile) cache client với trạng thái thực tế trên server.
