@@ -4,7 +4,18 @@ export interface Comment {
   body: string;
 }
 
-const BASE_URL = 'http://localhost:3000';
+export interface Product {
+  id: number;
+  name: string;
+  price: number;
+}
+
+export interface ProductsPage {
+  data: Product[];
+  nextCursor: number | null;
+}
+
+const BASE_URL = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:3000';
 
 export async function fetchComments(): Promise<Comment[]> {
   const res = await fetch(`${BASE_URL}/comments`);
@@ -36,4 +47,18 @@ export async function deleteComment(id: number): Promise<void> {
   if (!res.ok) {
     throw new Error(`HTTP ${res.status}: Failed to delete comment`);
   }
+}
+
+export async function fetchProductsPage({
+  cursor = 0,
+  limit = 5,
+}: {
+  cursor?: number;
+  limit?: number;
+}): Promise<ProductsPage> {
+  const res = await fetch(`${BASE_URL}/products?cursor=${cursor}&limit=${limit}`);
+  if (!res.ok) {
+    throw new Error(`HTTP ${res.status}: Failed to fetch products page`);
+  }
+  return res.json() as Promise<ProductsPage>;
 }
